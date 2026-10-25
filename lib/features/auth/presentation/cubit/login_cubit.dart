@@ -1,62 +1,50 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-
+import '../../../../core/errors/app_failure.dart';
 import '../../domain/usecases/login_usecase.dart';
-import '../../domain/usecases/verify_mfa_usecase.dart';
+import '../../domain/usecases/session_usecase.dart';
 import 'login_state.dart';
 
 class LoginCubit extends Cubit<LoginState> {
   final LoginUseCase loginUseCase;
-  final VerifyMfaUseCase verifyMfaUseCase;
+  final SessionUseCase sessionUseCase;
+  LoginCubit({required this.loginUseCase, required this.sessionUseCase})
+    : super(LoginCheckingSession());
 
-  LoginCubit({required this.loginUseCase, required this.verifyMfaUseCase})
-    : super(LoginInitial());
-
-  Future<void> login({required String email, required String password}) async {
-    if (email.isEmpty || password.isEmpty) {
-      emit(LoginFailure('الرجاء إدخال البريد الإلكتروني وكلمة المرور'));
-      return;
-    }
-
-    emit(LoginLoading());
-
+  Future<void> restoreSession() async {
     try {
-      final result = await loginUseCase(email: email, password: password);
-
-      if (result.mfaRequired) {
-        emit(
-          LoginMfaRequired(
-            userId: result.userId!,
-            message: result.message ?? 'مطلوب رمز التحقق',
-            devCode: result.devCode,
-          ),
-        );
-        return;
+      final authenticated = await sessionUseCase.hasSession();
+      if (!isClosed) emit(authenticated ? LoginSuccess() : LoginInitial());
+    } catch (_) {
+      if (!isClosed) {
+        emit(LoginFailure(const AppFailure(AppFailureCode.sessionReadFailed)));
       }
-
-      emit(LoginSuccess());
-    } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
-
-      emit(LoginFailure(message));
     }
   }
 
-  Future<void> verifyMfa({required int userId, required String code}) async {
-    if (code.isEmpty) {
-      emit(MfaVerificationFailure('الرجاء إدخال رمز التحقق'));
+  Future<void> login({required String email, required String password}) async {
+    if (state is LoginLoading) return;
+    email = email.trim();
+    if (email.isEmpty || password.isEmpty) {
+      emit(LoginFailure(const AppFailure(AppFailureCode.credentialsRequired)));
       return;
     }
-
-    emit(MfaVerificationLoading());
-
-    try {
-      await verifyMfaUseCase(userId: userId, code: code);
-
-      emit(MfaVerificationSuccess());
-    } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
-
-      emit(MfaVerificationFailure(message));
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      emit(LoginFailure(const AppFailure(AppFailureCode.invalidEmail)));
+      return;
     }
+    emit(LoginLoading());
+    try {
+      await loginUseCase(email: email, password: password);
+      if (!isClosed) emit(LoginSuccess());
+    } catch (error) {
+      if (!isClosed) {
+        emit(LoginFailure(AppFailure.from(error)));
+      }
+    }
+  }
+
+  Future<void> logout() async {
+    await sessionUseCase.logout();
+    if (!isClosed) emit(LoginInitial());
   }
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/localization/language_menu.dart';
+import '../../../../core/localization/localized_failure.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../cubit/login_cubit.dart';
 import '../cubit/login_state.dart';
-import 'mfa_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,7 +17,6 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-
   bool obscurePassword = true;
 
   @override
@@ -25,47 +26,41 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  void _login() => context.read<LoginCubit>().login(
+    email: emailController.text,
+    password: passwordController.text,
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
+    final l10n = AppLocalizations.of(context)!;
+    return Scaffold(
+      appBar: AppBar(actions: const [LanguageMenu()]),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: BlocBuilder<LoginCubit, LoginState>(
+                builder: (context, state) => Column(
                   children: [
                     Icon(
-                      Icons.mosque,
+                      Icons.people_outline,
                       size: 70,
                       color: theme.colorScheme.primary,
                     ),
-
                     const SizedBox(height: 15),
-
                     Text(
-                      'أمانوس',
+                      l10n.appTitle,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(height: 5),
-
-                    Text(
-                      'رحلتك الروحانية تبدأ من هنا',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-
+                    Text(l10n.userDirectory, style: theme.textTheme.bodyMedium),
                     const SizedBox(height: 35),
-
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -83,47 +78,47 @@ class _LoginPageState extends State<LoginPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'تسجيل الدخول',
+                            l10n.login,
                             textAlign: TextAlign.center,
                             style: theme.textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-
                           const SizedBox(height: 25),
-
-                          const Text('البريد الإلكتروني'),
-
+                          Text(l10n.email),
                           const SizedBox(height: 8),
-
                           TextField(
                             controller: emailController,
+                            enabled: state is! LoginLoading,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                             textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              hintText: 'example@email.com',
-                              prefixIcon: Icon(Icons.email_outlined),
+                            autofillHints: const [AutofillHints.username],
+                            decoration: InputDecoration(
+                              hintText: l10n.emailHint,
+                              prefixIcon: const Icon(Icons.email_outlined),
                             ),
                           ),
-
                           const SizedBox(height: 20),
-
-                          const Text('كلمة المرور'),
-
+                          Text(l10n.password),
                           const SizedBox(height: 8),
-
                           TextField(
                             controller: passwordController,
+                            enabled: state is! LoginLoading,
                             obscureText: obscurePassword,
                             textDirection: TextDirection.ltr,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _login(),
+                            autofillHints: const [AutofillHints.password],
                             decoration: InputDecoration(
                               prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    obscurePassword = !obscurePassword;
-                                  });
-                                },
+                                tooltip: obscurePassword
+                                    ? l10n.showPassword
+                                    : l10n.hidePassword,
+                                onPressed: () => setState(
+                                  () => obscurePassword = !obscurePassword,
+                                ),
                                 icon: Icon(
                                   obscurePassword
                                       ? Icons.visibility_off
@@ -132,111 +127,45 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                           ),
-
-                          const SizedBox(height: 25),
-
-                          BlocConsumer<LoginCubit, LoginState>(
-                            listener: (context, state) {
-                              if (state is LoginFailure) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(state.message)),
-                                );
-                              }
-
-                              if (state is LoginMfaRequired) {
-                                debugPrint('MFA DEV CODE: ${state.devCode}');
-
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => BlocProvider.value(
-                                      value: context.read<LoginCubit>(),
-                                      child: MfaPage(userId: state.userId),
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              if (state is LoginSuccess) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('تم تسجيل الدخول بنجاح'),
-                                  ),
-                                );
-                              }
-                            },
-                            builder: (context, state) {
-                              if (state is LoginLoading) {
-                                return const SizedBox(
-                                  height: 52,
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              }
-
-                              return ElevatedButton(
-                                onPressed: () {
-                                  context.read<LoginCubit>().login(
-                                    email: emailController.text.trim(),
-                                    password: passwordController.text,
-                                  );
-                                },
-                                child: const Text(
-                                  'تسجيل الدخول',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                          const SizedBox(height: 16),
+                          if (state is LoginFailure)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Text(
+                                state.failure.localize(l10n),
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
                                 ),
-                              );
-                            },
-                          ),
-
-                          const SizedBox(height: 18),
-
-                          const Row(
-                            children: [
-                              Expanded(child: Divider()),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 10),
-                                child: Text('أو'),
                               ),
-                              Expanded(child: Divider()),
-                            ],
+                            ),
+                          if (state is LoginLoading)
+                            SizedBox(
+                              height: 52,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  semanticsLabel: l10n.loading,
+                                ),
+                              ),
+                            )
+                          else
+                            ElevatedButton(
+                              onPressed: _login,
+                              child: Text(l10n.login),
+                            ),
+                          const SizedBox(height: 20),
+                          Text(
+                            l10n.loginOfflineHint,
+                            textAlign: TextAlign.center,
                           ),
-
-                          const SizedBox(height: 18),
-
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              // Guest mode لاحقاً
-                            },
-                            icon: const Icon(Icons.person_outline),
-                            label: const Text('عرض التطبيق كضيف'),
-                          ),
-
                           const SizedBox(height: 12),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'لا تملك حساب؟',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  // Register page لاحقاً
-                                },
-                                child: const Text(
-                                  'سجل هنا',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
+                          TextButton(
+                            onPressed: state is LoginLoading
+                                ? null
+                                : () {
+                                    emailController.text = 'eve.holt@reqres.in';
+                                    passwordController.text = 'cityslicka';
+                                  },
+                            child: Text(l10n.useDemoAccount),
                           ),
                         ],
                       ),

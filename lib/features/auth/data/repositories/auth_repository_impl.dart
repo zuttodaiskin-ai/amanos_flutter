@@ -1,11 +1,12 @@
+import '../../../../core/storage/secure_storage.dart';
 import '../../domain/entities/login_result.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
-
-  AuthRepositoryImpl(this.remoteDataSource);
+  final SecureStorage secureStorage;
+  AuthRepositoryImpl(this.remoteDataSource, this.secureStorage);
 
   @override
   Future<LoginResult> login({
@@ -16,20 +17,12 @@ class AuthRepositoryImpl implements AuthRepository {
       email: email,
       password: password,
     );
-
+    await secureStorage.saveToken(response.token);
     return response.toEntity();
   }
 
   @override
-  Future<LoginResult> verifyMfa({
-    required int userId,
-    required String code,
-  }) async {
-    final response = await remoteDataSource.verifyMfa(
-      userId: userId,
-      code: code,
-    );
-
-    return response.toEntity();
-  }
+  Future<bool> hasSession() => secureStorage.hasSession();
+  @override
+  Future<void> logout() => secureStorage.clearSession();
 }
